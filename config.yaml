@@ -1,0 +1,246 @@
+# SignalGuard configuration
+#
+# Values described as thresholds are engineering heuristics, not scientific
+# guarantees. They must be calibrated against representative speech before the
+# SDK is used as a production gate.
+
+project:
+  name: SignalGuard
+  config_version: 1
+  deterministic_seed: 0
+
+preprocessing:
+  target_sample_rate: 16000
+  # Defensive bounds prevent hostile/corrupt headers from creating enormous
+  # polyphase filters or allocations. 384 kHz covers common high-rate PCM.
+  maximum_input_sample_rate: 384000
+  maximum_resample_factor: 64.0
+  # Caps reduced up/down factors used to size scipy's polyphase FIR filter.
+  maximum_polyphase_factor: 2048
+  target_peak: 0.99
+  # peak_limit attenuates over-range audio but does not boost quiet recordings.
+  # This preserves absolute evidence used by later clipping/dropout detectors.
+  normalization_mode: peak_limit
+  max_normalization_gain_db: 12.0
+  remove_dc_offset: true
+  segment_duration_seconds: 3.0
+  include_partial_segment: true
+  pad_final_segment: false
+
+forensics:
+  decision_thresholds:
+    # Each lower bound is inclusive; the next bound ends the category.
+    likely_natural_min: 0.0
+    weak_evidence_min: 30.0
+    review_min: 50.0
+    likely_synthetic_min: 70.0
+  segment_aggregation:
+    method: mean_with_max_guard
+    max_segment_guard_score: 90.0
+  scoring_weights:
+    f0: 25.0
+    harmonic: 20.0
+    spectral: 25.0
+    phase: 15.0
+    temporal: 15.0
+
+  f0:
+    algorithm: yin
+    fmin_hz: 60.0
+    fmax_hz: 500.0
+    frame_length_samples: 2048
+    hop_length_samples: 256
+    trough_threshold: 0.1
+    center: false
+    pad_mode: constant
+    postprocessing: none
+    std_ddof: 0
+    range_method: max_minus_min
+    delta_policy: contiguous_voiced_only
+    # YIN always returns a candidate, even for silence/noise. These explicit
+    # energy and normalized-autocorrelation gates define voiced frames.
+    rms_floor_dbfs: -65.0
+    relative_rms_range_db: 35.0
+    rms_reference_percentile: 95.0
+    minimum_periodicity: 0.55
+    minimum_voiced_run_frames: 2
+    minimum_voiced_frames_for_variation: 10
+    minimum_voiced_ratio_for_variation: 0.10
+    low_voiced_ratio_below: 0.10
+    low_std_hz: 10.0
+    low_range_hz: 20.0
+    low_mean_abs_delta_hz_per_frame: 2.0
+    low_mean_abs_second_delta_hz_per_frame2: 1.0
+    scoring_weights:
+      low_std: 30.0
+      low_range: 25.0
+      low_mean_abs_delta: 15.0
+      low_mean_abs_second_delta: 20.0
+      low_voiced_ratio: 10.0
+
+  harmonic:
+    frame_length: 2048
+    hop_length: 256
+    harmonic_count: 8
+    bin_tolerance_hz: 20.0
+    low_harmonic_energy_ratio: 0.55
+    high_out_of_harmonic_ratio: 0.45
+    hnr_low_db: 8.0
+    hnr_high_db: 35.0
+    scoring_weights:
+      harmonic_energy_ratio: 40.0
+      out_of_harmonic_ratio: 35.0
+      abnormal_hnr: 25.0
+
+  spectral:
+    n_fft: 2048
+    hop_length: 256
+    rolloff_percent: 0.85
+    high_flatness: 0.50
+    high_normalized_entropy: 0.85
+    low_centroid_cv: 0.08
+    low_bandwidth_cv: 0.08
+    low_flux_cv: 0.10
+    low_rolloff_cv: 0.08
+    high_zcr: 0.10
+    scoring_weights:
+      flatness: 15.0
+      entropy: 15.0
+      zcr: 10.0
+      centroid_uniformity: 20.0
+      bandwidth_uniformity: 10.0
+      flux_uniformity: 20.0
+      rolloff_uniformity: 10.0
+
+  phase:
+    n_fft: 2048
+    hop_length: 256
+    phase_jump_radians: 2.8
+    high_phase_jump_ratio: 0.25
+    low_phase_variation: 0.10
+    minimum_bin_magnitude_ratio: 0.01
+    group_delay_outlier_zscore: 3.5
+    high_group_delay_outlier_ratio: 0.01
+    scoring_weights:
+      phase_jumps: 40.0
+      phase_continuity: 35.0
+      group_delay: 25.0
+
+  temporal:
+    min_segments: 2
+    low_energy_cv: 0.08
+    low_centroid_cv: 0.08
+    low_zcr_cv: 0.10
+    low_f0_cv: 0.06
+    scoring_weights:
+      energy_uniformity: 25.0
+      centroid_uniformity: 25.0
+      zcr_uniformity: 25.0
+      f0_uniformity: 25.0
+
+corruption_detection:
+  broadband_noise:
+    low_energy_quantile: 0.20
+    frame_length: 1024
+    hop_length: 512
+    detection_snr_db: 25.0
+    severity_boundaries_snr_db:
+      moderate_below: 20.0
+      high_below: 12.0
+  clipping:
+    sample_level: 0.98
+    flat_top_tolerance: 0.001
+    mild_ratio: 0.001
+    moderate_ratio: 0.01
+    severe_ratio: 0.05
+    flat_top_min_samples: 3
+  hum:
+    mains_frequency_hz: 50.0
+    supported_mains_frequencies_hz: [50.0, 60.0]
+    harmonic_count: 4
+    search_tolerance_hz: 1.5
+    local_bandwidth_hz: 10.0
+    minimum_peak_to_local_ratio_db: 8.0
+    severity_boundaries_prominence_db:
+      moderate_above: 14.0
+      high_above: 20.0
+  impulse:
+    local_window_samples: 9
+    median_absolute_deviation_multiplier: 8.0
+    minimum_absolute_amplitude: 0.20
+    minimum_residual_amplitude: 0.05
+    detection_events_per_second: 0.5
+    severity_boundaries_events_per_second:
+      moderate_above: 2.0
+      high_above: 5.0
+  dropout:
+    near_zero_amplitude: 0.0001
+    minimum_duration_ms: 20.0
+    maximum_restorable_duration_ms: 100.0
+    detection_total_ratio: 0.005
+    severity_boundaries_total_ratio:
+      moderate_above: 0.02
+      high_above: 0.10
+  rumble:
+    cutoff_hz: 80.0
+    excessive_energy_ratio: 0.20
+    severity_boundaries_energy_ratio:
+      moderate_above: 0.35
+      high_above: 0.50
+  hiss:
+    lower_frequency_hz: 6000.0
+    excessive_energy_ratio: 0.18
+    severity_boundaries_energy_ratio:
+      moderate_above: 0.30
+      high_above: 0.45
+
+restoration:
+  noise_reduction:
+    method: spectral_subtraction
+    n_fft: 2048
+    hop_length: 512
+    noise_reference_quantile: 0.20
+    subtraction_factor: 1.0
+    spectral_floor_ratio: 0.02
+  notch_filter:
+    quality_factor: 30.0
+    apply_harmonics: true
+  impulse_repair:
+    median_kernel_size: 5
+    interpolation_context_samples: 4
+  dropout_repair:
+    interpolation: linear
+  rumble_filter:
+    cutoff_hz: 80.0
+    order: 4
+  hiss_filter:
+    cutoff_hz: 6000.0
+    order: 6
+  declipping:
+    maximum_repair_ratio: 0.01
+    context_samples: 8
+
+quality_validation:
+  clean_snr_db: 25.0
+  minimum_acceptable_snr_db: 20.0
+  minimum_snr_improvement_db: 5.0
+  maximum_clipping_ratio: 0.001
+  require_corruption_reduction: true
+  reject_new_corruptions: true
+  maximum_rms_change_db: 6.0
+  success_by_corruption:
+    broadband_noise:
+      minimum_snr_improvement_db: 5.0
+      minimum_post_snr_db: 20.0
+    hum:
+      minimum_prominence_reduction_db: 6.0
+    impulse:
+      minimum_event_reduction_ratio: 0.75
+    dropout:
+      minimum_duration_reduction_ratio: 0.90
+    rumble:
+      minimum_band_energy_reduction_ratio: 0.40
+    hiss:
+      minimum_band_energy_reduction_ratio: 0.30
+    clipping:
+      minimum_clipping_reduction_ratio: 0.50

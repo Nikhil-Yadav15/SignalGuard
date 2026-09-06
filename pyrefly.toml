@@ -1,0 +1,10 @@
+# Pyrefly configuration for SignalGuard
+# See https://pyrefly.org/en/docs/configuration/
+
+python_interpreter = ".venv/Scripts/python.exe"
+
+[[search_path]]
+path = "."
+
+[[search_path]]
+path = "src"

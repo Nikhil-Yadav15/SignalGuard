@@ -1,11 +1,14 @@
 """Transparent aggregation of detector rules into Synthetic Evidence Scores."""
 
 from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
 import numpy as np
+
 from .detectors._common import AnalysisResult
 from .detectors.f0_analysis import F0AnalysisResult
 from .utils import get_config_section, load_config, to_json_safe
@@ -61,9 +64,13 @@ def score_synthetic_evidence(results: Mapping[str, F0AnalysisResult | AnalysisRe
         score=100*numerator/denominator
         domains.append(DomainScore(name,float(score),float(denominator),tuple(triggered)))
         weighted_score += float(domain_weight)*score; available_domain_weight += float(domain_weight)
-    total=0.0 if available_domain_weight==0 else float(weighted_score/available_domain_weight)
-    decision=evidence_decision(total, config=root)
-    return SyntheticEvidenceScore(float(np.clip(total,0,100)),decision,tuple(domains),tuple(explanations))
+    total = 0.0 if available_domain_weight == 0 else float(weighted_score / available_domain_weight)
+    flagged = [d.score for d in domains if d.score >= 35.0]
+    if len(flagged) >= 2 and total > 0.0:
+        boost = 1.0 + 0.15 * (len(flagged) - 1)
+        total = float(min(100.0, total * boost))
+    decision = evidence_decision(total, config=root)
+    return SyntheticEvidenceScore(float(np.clip(total, 0, 100)), decision, tuple(domains), tuple(explanations))
 
 
 def aggregate_segment_scores(scores: Sequence[SyntheticEvidenceScore], *, config: Mapping[str, Any] | None = None) -> SyntheticEvidenceScore:
@@ -125,11 +132,12 @@ def combine_evidence_scores(
         return SyntheticEvidenceScore(0.0, EvidenceDecision.LIKELY_NATURAL, (), ())
     total_weight = sum(weight for _, weight in usable)
     total = sum(score.score * weight for score, weight in usable) / total_weight
+    all_domains = tuple(domain for score, _ in usable for domain in score.domain_scores)
     root = load_config() if config is None else config
     return SyntheticEvidenceScore(
         float(np.clip(total, 0.0, 100.0)),
         evidence_decision(total, config=root),
-        tuple(domain for score, _ in usable for domain in score.domain_scores),
+        all_domains,
         tuple(text for score, _ in usable for text in score.explanations),
     )
 

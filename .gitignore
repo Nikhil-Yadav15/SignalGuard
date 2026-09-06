@@ -9,7 +9,7 @@ venv/
 .idea/
 .vscode/
 .DS_Store
-
+*.md
 # Keep the dataset folders, but do not commit local audio corpora.
 data/clean/*
 !data/clean/.gitkeep

@@ -385,7 +385,7 @@ def load_audio(source: AudioSource) -> tuple[NDArray[np.float32], int]:
     except Exception as exc:
         raise AudioLoadError("Unable to decode the supplied audio source") from exc
     finally:
-        if original_stream_position is not None:
+        if original_stream_position is not None and hasattr(source, "seek"):
             try:
                 source.seek(original_stream_position)
             except (AttributeError, OSError, ValueError):
@@ -490,13 +490,7 @@ def segment_audio(
         allowed_dimensions=(1,),
     )
 
-    active_settings = settings
-    if (
-        duration_seconds is None
-        or include_partial is None
-        or pad_final is None
-    ):
-        active_settings = active_settings or PreprocessingSettings.from_config()
+    active_settings = settings if settings is not None else PreprocessingSettings.from_config()
 
     segment_duration = (
         active_settings.segment_duration_seconds

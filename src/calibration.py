@@ -13,6 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+# pyrefly: ignore [missing-import]
 import numpy as np
 
 from .pipeline import SignalGuardPipeline
@@ -60,10 +61,14 @@ class CalibrationReport:
     natural_count: int
     synthetic_count: int
     selection_rule: str
-    def to_dict(self) -> dict[str, Any]: return to_json_safe(self)
+
+    def to_dict(self) -> dict[str, Any]:
+        return to_json_safe(self)
 
 
-def calibrate_likely_synthetic_threshold(examples: Sequence[CalibrationExample]) -> CalibrationReport:
+def calibrate_likely_synthetic_threshold(
+    examples: Sequence[CalibrationExample],
+) -> CalibrationReport:
     """Select the F1-optimal threshold with deterministic conservative ties.
 
     A score equal to the threshold is classified synthetic, matching the
@@ -72,50 +77,133 @@ def calibrate_likely_synthetic_threshold(examples: Sequence[CalibrationExample])
     """
     if len(examples) < 2:
         raise ValueError("at least two labelled examples are required")
-    labels={example.label for example in examples}
+
+    labels = {example.label for example in examples}
     if labels != {CalibrationLabel.NATURAL, CalibrationLabel.SYNTHETIC}:
-        raise ValueError("calibration requires at least one natural and one synthetic example")
-    values=sorted({float(example.score) for example in examples})
-    candidates=sorted(set([0.0, 100.0, *values]), reverse=True)
-    metrics=[_metrics(examples, candidate) for candidate in candidates]
-    best=max(metrics, key=lambda item: (item.f1, item.precision, item.specificity, item.threshold))
-    return CalibrationReport(best.threshold,best,len(examples),sum(item.label is CalibrationLabel.NATURAL for item in examples),sum(item.label is CalibrationLabel.SYNTHETIC for item in examples),"Maximum F1; ties prefer precision, specificity, then the higher threshold.")
+        raise ValueError(
+            "calibration requires at least one natural and one synthetic example"
+        )
+
+    values = sorted({float(example.score) for example in examples})
+    candidates = sorted({0.0, 100.0, *values}, reverse=True)
+    metrics = [_metrics(examples, candidate) for candidate in candidates]
+    best = max(
+        metrics,
+        key=lambda item: (item.f1, item.precision, item.specificity, item.threshold),
+    )
+
+    natural_count = sum(
+        item.label is CalibrationLabel.NATURAL for item in examples
+    )
+    synthetic_count = sum(
+        item.label is CalibrationLabel.SYNTHETIC for item in examples
+    )
+
+    return CalibrationReport(
+        recommended_likely_synthetic_threshold=best.threshold,
+        metrics=best,
+        example_count=len(examples),
+        natural_count=natural_count,
+        synthetic_count=synthetic_count,
+        selection_rule=(
+            "Maximum F1; ties prefer precision, specificity, then the higher threshold."
+        ),
+    )
 
 
-def score_labelled_audio(natural_directory: str | Path, synthetic_directory: str | Path, *, pipeline: SignalGuardPipeline | None = None) -> tuple[CalibrationExample, ...]:
+def score_labelled_audio(
+    natural_directory: str | Path,
+    synthetic_directory: str | Path,
+    *,
+    pipeline: SignalGuardPipeline | None = None,
+) -> tuple[CalibrationExample, ...]:
     """Run the pipeline on labelled directory trees and return raw evidence scores.
 
     Files are never uploaded or modified. Decode failures are reported with the
     file path rather than silently removing evidence from a calibration set.
     """
-    active=pipeline or SignalGuardPipeline()
-    pairs=((Path(natural_directory),CalibrationLabel.NATURAL),(Path(synthetic_directory),CalibrationLabel.SYNTHETIC))
-    result=[]
-    extensions={".wav", ".flac", ".ogg", ".mp3"}
-    for directory,label in pairs:
-        if not directory.is_dir(): raise FileNotFoundError(f"Calibration directory does not exist: {directory}")
-        files=sorted(path for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in extensions)
-        if not files: raise ValueError(f"No supported audio files found in calibration directory: {directory}")
+    active = pipeline or SignalGuardPipeline()
+    pairs = (
+        (Path(natural_directory), CalibrationLabel.NATURAL),
+        (Path(synthetic_directory), CalibrationLabel.SYNTHETIC),
+    )
+    result: list[CalibrationExample] = []
+    extensions = {".wav", ".flac", ".ogg", ".mp3"}
+
+    for directory, label in pairs:
+        if not directory.is_dir():
+            raise FileNotFoundError(
+                f"Calibration directory does not exist: {directory}"
+            )
+        files = sorted(
+            path
+            for path in directory.rglob("*")
+            if path.is_file() and path.suffix.lower() in extensions
+        )
+        if not files:
+            raise ValueError(
+                f"No supported audio files found in calibration directory: {directory}"
+            )
         for path in files:
-            try: analysis=active.analyze_file(str(path))
-            except Exception as exc: raise ValueError(f"Unable to score calibration file: {path}") from exc
-            result.append(CalibrationExample(str(path),label,analysis.evidence.score))
+            try:
+                analysis = active.analyze_file(str(path))
+            except Exception as exc:
+                raise ValueError(
+                    f"Unable to score calibration file: {path}"
+                ) from exc
+            result.append(
+                CalibrationExample(str(path), label, analysis.evidence.score)
+            )
+
     return tuple(result)
 
 
-def calibrate_from_directories(natural_directory: str | Path, synthetic_directory: str | Path, *, pipeline: SignalGuardPipeline | None = None) -> CalibrationReport:
+def calibrate_from_directories(
+    natural_directory: str | Path,
+    synthetic_directory: str | Path,
+    *,
+    pipeline: SignalGuardPipeline | None = None,
+) -> CalibrationReport:
     """Score labelled recordings and return a reviewable threshold report."""
-    return calibrate_likely_synthetic_threshold(score_labelled_audio(natural_directory,synthetic_directory,pipeline=pipeline))
+    return calibrate_likely_synthetic_threshold(
+        score_labelled_audio(
+            natural_directory,
+            synthetic_directory,
+            pipeline=pipeline,
+        )
+    )
 
 
-def _metrics(examples: Iterable[CalibrationExample], threshold: float) -> ThresholdMetrics:
-    tp=fp=tn=fn=0
+def _metrics(
+    examples: Iterable[CalibrationExample],
+    threshold: float,
+) -> ThresholdMetrics:
+    tp = fp = tn = fn = 0
     for example in examples:
-        predicted=example.score>=threshold; actual=example.label is CalibrationLabel.SYNTHETIC
-        if predicted and actual: tp+=1
-        elif predicted: fp+=1
-        elif actual: fn+=1
-        else: tn+=1
-    precision=tp/(tp+fp) if tp+fp else 0.0; recall=tp/(tp+fn) if tp+fn else 0.0; specificity=tn/(tn+fp) if tn+fp else 0.0
-    f1=2*precision*recall/(precision+recall) if precision+recall else 0.0
-    return ThresholdMetrics(float(threshold),tp,fp,tn,fn,float(precision),float(recall),float(specificity),float(f1))
+        predicted = example.score >= threshold
+        actual = example.label is CalibrationLabel.SYNTHETIC
+        if predicted and actual:
+            tp += 1
+        elif predicted:
+            fp += 1
+        elif actual:
+            fn += 1
+        else:
+            tn += 1
+
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    specificity = tn / (tn + fp) if tn + fp else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+
+    return ThresholdMetrics(
+        threshold=float(threshold),
+        true_positive=tp,
+        false_positive=fp,
+        true_negative=tn,
+        false_negative=fn,
+        precision=float(precision),
+        recall=float(recall),
+        specificity=float(specificity),
+        f1=float(f1),
+    )

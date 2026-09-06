@@ -31,18 +31,23 @@ forensics:
   decision_thresholds:
     # Each lower bound is inclusive; the next bound ends the category.
     likely_natural_min: 0.0
-    weak_evidence_min: 30.0
-    review_min: 50.0
-    likely_synthetic_min: 70.0
+    weak_evidence_min: 25.0
+    review_min: 40.0
+    likely_synthetic_min: 65.0
   segment_aggregation:
     method: mean_with_max_guard
     max_segment_guard_score: 90.0
   scoring_weights:
-    f0: 25.0
-    harmonic: 20.0
-    spectral: 25.0
-    phase: 15.0
-    temporal: 15.0
+    f0: 16.0
+    harmonic: 12.0
+    spectral: 12.0
+    phase: 10.0
+    temporal: 10.0
+    lpc: 10.0
+    bispectrum: 10.0
+    modulation: 10.0
+    breath: 5.0
+    decay: 5.0
 
   f0:
     algorithm: yin
@@ -83,8 +88,8 @@ forensics:
     hop_length: 256
     harmonic_count: 8
     bin_tolerance_hz: 20.0
-    low_harmonic_energy_ratio: 0.55
-    high_out_of_harmonic_ratio: 0.45
+    low_harmonic_energy_ratio: 0.65
+    high_out_of_harmonic_ratio: 0.35
     hnr_low_db: 8.0
     hnr_high_db: 35.0
     scoring_weights:
@@ -96,13 +101,13 @@ forensics:
     n_fft: 2048
     hop_length: 256
     rolloff_percent: 0.85
-    high_flatness: 0.50
-    high_normalized_entropy: 0.85
-    low_centroid_cv: 0.08
-    low_bandwidth_cv: 0.08
-    low_flux_cv: 0.10
+    high_flatness: 0.35
+    high_normalized_entropy: 0.82
+    low_centroid_cv: 0.12
+    low_bandwidth_cv: 0.10
+    low_flux_cv: 0.12
     low_rolloff_cv: 0.08
-    high_zcr: 0.10
+    high_zcr: 0.08
     scoring_weights:
       flatness: 15.0
       entropy: 15.0
@@ -137,6 +142,47 @@ forensics:
       centroid_uniformity: 25.0
       zcr_uniformity: 25.0
       f0_uniformity: 25.0
+
+  lpc:
+    order: 16
+    low_residual_kurtosis: 5.0
+    low_prediction_gain_db: 4.0
+    scoring_weights:
+      low_residual_kurtosis: 60.0
+      low_prediction_gain: 40.0
+
+  bispectrum:
+    n_fft: 512
+    hop_length: 256
+    fmax_hz: 2000.0
+    low_bicoherence: 0.14
+    low_max_bicoherence: 0.42
+    scoring_weights:
+      low_bicoherence: 60.0
+      low_max_bicoherence: 40.0
+
+  modulation:
+    min_duration_seconds: 0.5
+    high_modulation_peak_ratio: 4.5
+    low_modulation_depth: 0.28
+    scoring_weights:
+      unnatural_modulation_peak: 50.0
+      low_modulation_depth: 50.0
+
+  breath:
+    max_continuous_speech_seconds: 4.5
+    digital_silence_floor_dbfs: -75.0
+    high_digital_silence_ratio: 0.20
+    scoring_weights:
+      run_on_speech: 50.0
+      digital_silence_pauses: 50.0
+
+  decay:
+    abrupt_decay_threshold_ms: 8.0
+    min_natural_decay_ms: 12.0
+    scoring_weights:
+      abrupt_utterance_cutoff: 60.0
+      unnatural_decay_profile: 40.0
 
 corruption_detection:
   broadband_noise:

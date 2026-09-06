@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import json
+from copy import deepcopy
 
 import numpy as np
 import pytest
+import soundfile as sf
 
+from src.dataset_generator import generate_clean_speech
 from src.detectors import (
     analyze_phase,
     analyze_spectral,
     analyze_temporal,
     detect_corruption,
 )
-from src.pipeline import SignalGuardPipeline
+from src.pipeline import PipelineDecision, SignalGuardPipeline
 from src.quality import validate_restoration
 from src.restoration import notch_hum, repair_dropouts
 from src.utils import ConfigError, load_config
@@ -156,3 +158,43 @@ def test_quality_gate_uses_configured_corruption_reduction_metrics() -> None:
     assert validation.accepted
     assert not validation.reasons
     assert all(check.passed for check in validation.checks)
+
+
+def test_harmonic_sound_is_not_detected_as_mains_hum() -> None:
+    time = np.arange(RATE) / RATE
+    # 100 Hz harmonic sound with multiples at 200 Hz, 300 Hz
+    harmonic_signal = (
+        0.5 * np.sin(2 * np.pi * 100 * time)
+        + 0.3 * np.sin(2 * np.pi * 200 * time)
+        + 0.2 * np.sin(2 * np.pi * 300 * time)
+    ).astype(np.float32)
+    report = detect_corruption(harmonic_signal, RATE)
+    assert "hum" not in report.detected_kinds
+    assert report.metrics["hum_prominence_db"] is None
+
+
+def test_harmonic_sound_pipeline_decision_is_not_unrecoverable() -> None:
+    time = np.arange(round(RATE * 1.5)) / RATE
+    harmonic_signal = (
+        0.4 * np.sin(2 * np.pi * 100 * time)
+        + 0.25 * np.sin(2 * np.pi * 200 * time)
+        + 0.15 * np.sin(2 * np.pi * 300 * time)
+    ).astype(np.float32)
+    pipeline = SignalGuardPipeline()
+    result = pipeline.analyze_samples(harmonic_signal, RATE)
+    assert result.decision is not PipelineDecision.REJECT_UNRECOVERABLE
+    assert result.decision in (PipelineDecision.PASS, PipelineDecision.PASS_RESTORED)
+
+
+def test_bypassed_restoration_on_mild_corruption_yields_pass() -> None:
+    # A natural speech sample with mild background noise (low/moderate severity)
+    speech = generate_clean_speech(f0_base=120.0, seed=100)
+    rate = RATE
+    rng = np.random.default_rng(42)
+    sample = (speech.astype(np.float32) + (0.020 * rng.normal(0, 1, size=speech.shape)).astype(np.float32))
+    pipeline = SignalGuardPipeline()
+    result = pipeline.analyze_samples(sample, rate)
+    # Since corruption was not severe, if restoration does not pass quality gate,
+    # pipeline safely rolls back and passes the original audio rather than REJECT_UNRECOVERABLE
+    assert result.decision in (PipelineDecision.PASS, PipelineDecision.PASS_RESTORED)
+    assert result.decision is not PipelineDecision.REJECT_UNRECOVERABLE

@@ -12,15 +12,20 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from .detectors import (
+    analyze_bispectrum,
+    analyze_breath,
+    analyze_decay,
     analyze_f0,
     analyze_harmonics,
+    analyze_lpc,
+    analyze_modulation,
     analyze_phase,
     analyze_spectral,
     analyze_temporal,
     detect_corruption,
 )
 from .detectors._common import AnalysisResult
-from .detectors.corruption_detection import CorruptionReport
+from .detectors.corruption_detection import CorruptionReport, Severity
 from .detectors.f0_analysis import F0AnalysisResult, F0Settings
 from .preprocessing import (
     AudioSource,
@@ -221,11 +226,37 @@ class SignalGuardPipeline:
             before_report=corruption_before,
             config=self.config,
         )
-        decision = (
-            PipelineDecision.PASS_RESTORED
-            if quality.accepted
-            else PipelineDecision.REJECT_UNRECOVERABLE
-        )
+        if quality.accepted:
+            decision = PipelineDecision.PASS_RESTORED
+            restored_output: tuple[float, ...] | None = tuple(
+                float(value) for value in np.asarray(restored).flat
+            )
+            applied_output = tuple(applied)
+            quality_after = quality.after
+        else:
+            # Restoration was rejected by the quality gate.
+            # Only declare the audio REJECT_UNRECOVERABLE if the original recording
+            # suffered from severe distortions (e.g. severe clipping, SNR < 12 dB, major dropouts).
+            # If the detected corruption was minor/moderate or a false positive,
+            # we safely bypass restoration and PASS the original clean audio.
+            is_severe = any(
+                d.severity in (Severity.SEVERE, Severity.HIGH)
+                for d in corruption_before.detections
+                if d.detected
+            )
+            if is_severe:
+                decision = PipelineDecision.REJECT_UNRECOVERABLE
+                restored_output = tuple(
+                    float(value) for value in np.asarray(restored).flat
+                )
+                applied_output = tuple(applied)
+                quality_after = quality.after
+            else:
+                decision = PipelineDecision.PASS
+                restored_output = None
+                applied_output = ()
+                quality_after = None
+
         return PipelineResult(
             decision,
             audio,
@@ -233,9 +264,9 @@ class SignalGuardPipeline:
             segment_scores,
             forensic_results,
             corruption_before,
-            quality.after,
-            tuple(float(value) for value in restored),
-            tuple(applied),
+            quality_after,
+            restored_output,
+            applied_output,
             quality,
         )
 
@@ -263,6 +294,31 @@ class SignalGuardPipeline:
                 config=self.config,
             ),
             "phase": analyze_phase(
+                samples,
+                sample_rate,
+                config=self.config,
+            ),
+            "lpc": analyze_lpc(
+                samples,
+                sample_rate,
+                config=self.config,
+            ),
+            "bispectrum": analyze_bispectrum(
+                samples,
+                sample_rate,
+                config=self.config,
+            ),
+            "modulation": analyze_modulation(
+                samples,
+                sample_rate,
+                config=self.config,
+            ),
+            "breath": analyze_breath(
+                samples,
+                sample_rate,
+                config=self.config,
+            ),
+            "decay": analyze_decay(
                 samples,
                 sample_rate,
                 config=self.config,

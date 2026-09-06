@@ -1,5 +1,10 @@
 """SignalGuard deterministic audio forensics and restoration SDK."""
 
+try:
+    import numba  # noqa: F401 - eagerly initialize to prevent lazy_loader circular imports
+except ImportError:
+    pass
+
 from .preprocessing import (
     AudioLoadError,
     AudioSegment,

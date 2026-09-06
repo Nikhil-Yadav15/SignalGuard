@@ -175,11 +175,23 @@ def validate_project_config(config: Mapping[str, Any]) -> None:
             forensics, "scoring_weights"
         )
     }
-    for detector_name in ("f0", "harmonic", "spectral", "phase", "temporal"):
-        detector = get_config_section(forensics, detector_name)
-        weight_groups[f"forensics.{detector_name}.scoring_weights"] = (
-            get_config_section(detector, "scoring_weights")
-        )
+    for detector_name in (
+        "f0",
+        "harmonic",
+        "spectral",
+        "phase",
+        "temporal",
+        "lpc",
+        "bispectrum",
+        "modulation",
+        "breath",
+        "decay",
+    ):
+        if detector_name in forensics:
+            detector = get_config_section(forensics, detector_name)
+            weight_groups[f"forensics.{detector_name}.scoring_weights"] = (
+                get_config_section(detector, "scoring_weights")
+            )
     for path, weights in weight_groups.items():
         values = [
             _coerce_real(value, path=f"{path}.{name}")
@@ -194,23 +206,25 @@ def validate_project_config(config: Mapping[str, Any]) -> None:
         ("harmonic", "frame_length"),
         ("spectral", "n_fft"),
         ("phase", "n_fft"),
+        ("bispectrum", "n_fft"),
     ):
-        detector = get_config_section(forensics, detector_name)
-        frame_size = _required_integer(
-            detector,
-            frame_key,
-            path=f"forensics.{detector_name}.{frame_key}",
-        )
-        detector_hop = _required_integer(
-            detector,
-            "hop_length",
-            path=f"forensics.{detector_name}.hop_length",
-        )
-        if frame_size <= 0 or detector_hop <= 0 or detector_hop > frame_size:
-            raise ConfigError(
-                f"forensics.{detector_name} frame/hop lengths must be positive "
-                "and hop must not exceed the frame length"
+        if detector_name in forensics:
+            detector = get_config_section(forensics, detector_name)
+            frame_size = _required_integer(
+                detector,
+                frame_key,
+                path=f"forensics.{detector_name}.{frame_key}",
             )
+            detector_hop = _required_integer(
+                detector,
+                "hop_length",
+                path=f"forensics.{detector_name}.hop_length",
+            )
+            if frame_size <= 0 or detector_hop <= 0 or detector_hop > frame_size:
+                raise ConfigError(
+                    f"forensics.{detector_name} frame/hop lengths must be positive "
+                    "and hop must not exceed the frame length"
+                )
 
     aggregation = get_config_section(forensics, "segment_aggregation")
     if aggregation.get("method") != "mean_with_max_guard":

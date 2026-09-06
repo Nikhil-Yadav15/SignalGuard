@@ -109,24 +109,33 @@ def _clipping_metric(
 
 def _hum_metric(x: np.ndarray, rate: int, settings: Mapping[str, Any]) -> float | None:
     spectrum = np.abs(np.fft.rfft(x * np.hanning(x.size))) ** 2
-    freq = np.fft.rfftfreq(x.size, 1 / rate); local = float(settings["local_bandwidth_hz"]); tol=float(settings["search_tolerance_hz"])
-    values=[]
+    freq = np.fft.rfftfreq(x.size, 1 / rate)
+    local = float(settings["local_bandwidth_hz"])
+    tol = float(settings["search_tolerance_hz"])
+    harmonic_values: dict[int, float] = {}
     for harmonic in range(1, int(settings["harmonic_count"]) + 1):
-        target=float(settings["mains_frequency_hz"]) * harmonic
-        if target >= rate/2: break
+        target = float(settings["mains_frequency_hz"]) * harmonic
+        if target >= rate / 2:
+            break
         peak_mask = np.abs(freq - target) <= tol
         nearby = (np.abs(freq - target) <= local) & ~peak_mask
         # Short clips can have FFT bins wider than either configured window.
         # Such clips do not contain enough resolution for defensible hum evidence.
         if not np.any(peak_mask) or not np.any(nearby):
             continue
-        peak=float(np.mean(spectrum[peak_mask]))
-        baseline=float(np.mean(spectrum[nearby]))
-        values.append(10*np.log10(max(peak,np.finfo(float).tiny)/max(baseline,np.finfo(float).tiny)))
-    # A single tonal component can coincide with one hum harmonic.  Require
-    # evidence at two harmonics before labelling it mains hum.
-    strong = [value for value in values if value >= float(settings["minimum_peak_to_local_ratio_db"])]
-    return float(np.mean(strong)) if len(strong) >= 2 else None
+        peak = float(np.mean(spectrum[peak_mask]))
+        baseline = float(np.mean(spectrum[nearby]))
+        harmonic_values[harmonic] = 10 * np.log10(
+            max(peak, np.finfo(float).tiny) / max(baseline, np.finfo(float).tiny)
+        )
+    thresh = float(settings["minimum_peak_to_local_ratio_db"])
+    strong_harmonics = [h for h, val in harmonic_values.items() if val >= thresh]
+    # Mains hum physically requires the fundamental mains frequency (h=1) to be elevated,
+    # plus at least one supporting harmonic (h >= 2) to rule out single tonal components.
+    # Normal voice pitch harmonics at 100 Hz, 150 Hz, etc. do not have 50 Hz mains fundamental.
+    if 1 in strong_harmonics and len(strong_harmonics) >= 2:
+        return float(np.mean([harmonic_values[h] for h in strong_harmonics]))
+    return None
 
 
 def _impulse_metric(x: np.ndarray, rate: int, settings: Mapping[str, Any]) -> float:

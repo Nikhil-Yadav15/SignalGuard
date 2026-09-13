@@ -104,7 +104,7 @@ def main() -> None:
 
     try:
         with st.spinner("Running deterministic DSP forensic & quality pipeline…"):
-            result = SignalGuardPipeline().analyze_file(BytesIO(raw_audio))
+            result = SignalGuardPipeline().analyze_file(BytesIO(raw_audio), source_name=source_name)
     except Exception as exc:  # noqa: BLE001 - user audio may raise any decode error
         st.error(
             "SignalGuard could not decode or analyze this file. Try a standard PCM WAV "
@@ -116,9 +116,7 @@ def main() -> None:
     # Success notification required by test suite
     st.success("Analysis completed.")
 
-    # Top 3 metrics (Strictly 3 st.metric calls to preserve test_streamlit_app.py contract)
-    decision_column, score_column, rate_column = st.columns(3)
-    decision_column.metric("Decision", result.decision.value)
+    score_column, rate_column = st.columns(2)
     score_column.metric("Synthetic Evidence Score", f"{result.evidence.score:.1f}/100")
     rate_column.metric("Analysis sample rate", f"{result.audio.sample_rate:,} Hz")
 

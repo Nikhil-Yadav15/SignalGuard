@@ -308,11 +308,14 @@ def render_forensics_tab(result: PipelineResult) -> None:
 
     st.markdown(summary_card_html, unsafe_allow_html=True)
 
-    if result.evidence.explanations:
-        with st.expander(
-            f"🛠️ View Raw DSP Threshold Details ({len(result.evidence.explanations)} Rules Triggered)",
-            expanded=False,
-        ):
+    findings_count = len(result.evidence.explanations)
+    expander_title = (
+        f"🔍 Show All Detailed Findings ({findings_count} Rules Triggered)"
+        if findings_count > 0
+        else "🔍 Show All Detailed Findings (Clean Speech Baseline)"
+    )
+    with st.expander(expander_title, expanded=False):
+        if result.evidence.explanations:
             st.caption("Low-level physical acoustic measurements and deterministic heuristic rules for technical inspection:")
             domain_meta: dict[str, tuple[str, str, str]] = {
                 "f0": (
@@ -393,22 +396,22 @@ def render_forensics_tab(result: PipelineResult) -> None:
                     """,
                     unsafe_allow_html=True,
                 )
-    else:
-        st.markdown(
-            """
-            <div class="clean-evidence-card">
-                <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem;">
-                    ✅ Clean Organic Speech Baseline
+        else:
+            st.markdown(
+                """
+                <div class="clean-evidence-card">
+                    <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem;">
+                        ✅ Clean Organic Speech Baseline
+                    </div>
+                    <div style="font-size: 0.9rem; line-height: 1.4; color: #d1fae5;">
+                        No acoustic anomalies crossed synthetic thresholds. All analyzed physical domains—including
+                        pitch contour variation, glottal pulse kurtosis, non-linear harmonic coupling, respiratory pauses,
+                        and room reverberation decay—exhibit natural human bio-acoustic properties.
+                    </div>
                 </div>
-                <div style="font-size: 0.9rem; line-height: 1.4; color: #d1fae5;">
-                    No acoustic anomalies crossed synthetic thresholds. All analyzed physical domains—including
-                    pitch contour variation, glottal pulse kurtosis, non-linear harmonic coupling, respiratory pauses,
-                    and room reverberation decay—exhibit natural human bio-acoustic properties.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def render_restoration_tab(result: PipelineResult) -> None:

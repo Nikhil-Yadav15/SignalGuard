@@ -27,7 +27,6 @@ from src.ui import (
     generate_preset_audio,
     get_preset_key,
     inject_custom_css,
-    render_decision_banner,
     render_forensics_tab,
     render_gauge_meter,
     render_header,
@@ -123,8 +122,7 @@ def main() -> None:
     score_column.metric("Synthetic Evidence Score", f"{result.evidence.score:.1f}/100")
     rate_column.metric("Analysis sample rate", f"{result.audio.sample_rate:,} Hz")
 
-    # Executive Decision Banner & Gauge
-    render_decision_banner(result)
+    # Executive Gauge
     render_gauge_meter(result.evidence.score)
 
     # Interactive Inspection Tabs

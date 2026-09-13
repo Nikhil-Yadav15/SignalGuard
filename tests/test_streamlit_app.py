@@ -10,7 +10,12 @@ import soundfile as sf
 from streamlit.testing.v1 import AppTest
 
 
-def test_streamlit_upload_and_analysis_flow() -> None:
+def test_streamlit_upload_and_analysis_flow(monkeypatch) -> None:
+    # Ensure headless test runs deterministically without external network requests
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("GOOGLE_API_KEY", "")
+
     sample_rate = 16_000
     time = np.arange(sample_rate // 2) / sample_rate
     samples = (0.3 * np.sin(2 * np.pi * 200 * time)).astype(np.float32)

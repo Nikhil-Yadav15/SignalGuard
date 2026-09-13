@@ -17,4 +17,7 @@ data/corrupted/*
 !data/corrupted/.gitkeep
 data/synthetic/*
 !data/synthetic/.gitkeep
-
+# Secrets & Environment variables
+.env
+*.env
+.streamlit/secrets.toml

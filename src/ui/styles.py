@@ -49,32 +49,6 @@ def inject_custom_css() -> None:
         .badge-zero-ml { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
         .badge-16k { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
 
-        .decision-banner {
-            border-radius: 10px;
-            padding: 1.2rem 1.6rem;
-            margin: 1.2rem 0;
-            border-left: 6px solid;
-        }
-        .decision-pass {
-            background: rgba(16, 185, 129, 0.12);
-            border-color: #10b981;
-            color: #6ee7b7;
-        }
-        .decision-restored {
-            background: rgba(245, 158, 11, 0.12);
-            border-color: #f59e0b;
-            color: #fcd34d;
-        }
-        .decision-reject-synth {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: #ef4444;
-            color: #fca5a5;
-        }
-        .decision-reject-unrec {
-            background: rgba(225, 29, 72, 0.15);
-            border-color: #e11d48;
-            color: #fda4af;
-        }
         .gauge-container {
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -166,6 +140,94 @@ def inject_custom_css() -> None:
             padding: 1.2rem 1.5rem;
             margin: 0.8rem 0;
             color: #a7f3d0;
+        }
+
+        /* Forensic Executive Summary Card */
+        .ai-summary-container {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.75) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 4px solid #38bdf8;
+            border-radius: 8px;
+            padding: 1.25rem 1.6rem;
+            margin: 1.1rem 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+        .ai-summary-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.6rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .ai-badge {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.12);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+        }
+        .ai-model-tag {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        .ai-headline {
+            color: #f8fafc;
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin: 0.25rem 0 0.45rem 0;
+            line-height: 1.35;
+        }
+        .ai-overview {
+            color: #cbd5e1;
+            font-size: 0.92rem;
+            line-height: 1.55;
+            margin-bottom: 0.85rem;
+        }
+        .ai-section-title {
+            color: #38bdf8;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0.85rem 0 0.4rem 0;
+        }
+        .summary-findings-list {
+            margin: 0 0 0.8rem 0;
+            padding-left: 1.2rem;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .summary-findings-list li {
+            margin-bottom: 0.45rem;
+        }
+        .summary-auditory-note {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 0.65rem;
+            margin-top: 0.65rem;
+            line-height: 1.45;
+        }
+        .summary-auditory-note strong {
+            color: #38bdf8;
+        }
+        .ai-fallback-hint {
+            margin-top: 0.75rem;
+            padding: 0.45rem 0.75rem;
+            background: rgba(51, 65, 85, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            color: #94a3b8;
+            font-size: 0.76rem;
+            line-height: 1.35;
         }
         </style>
         """,

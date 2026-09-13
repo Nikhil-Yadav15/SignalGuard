@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from io import BytesIO
 
 import numpy as np
@@ -8,6 +9,7 @@ import streamlit as st
 
 from src.detectors._common import AnalysisResult
 from src.detectors.f0_analysis import F0AnalysisResult
+from src.llm import generate_forensic_summary, resolve_llm_credentials
 from src.pipeline import PipelineDecision, PipelineResult
 from src.scoring import EvidenceDecision
 from src.visualization import (
@@ -23,11 +25,6 @@ def render_header() -> None:
     st.markdown(
         """
         <div class="main-header">
-            <div style="margin-bottom: 0.5rem;">
-                <span class="badge-pill badge-dsp">Deterministic DSP</span>
-                <span class="badge-pill badge-zero-ml">Zero ML Models</span>
-                <span class="badge-pill badge-16k">Canonical 16 kHz</span>
-            </div>
             <h1>SignalGuard · Audio Quality & Forensics</h1>
             <p>A deterministic signal-processing quality-control layer for ML speech pipelines.
             Flag synthetic voices via physical acoustics and repair human speech distortions.</p>
@@ -35,47 +32,6 @@ def render_header() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-def render_decision_banner(result: PipelineResult) -> None:
-    """Render the executive outcome card with distinct color-coded styling."""
-    decision_styles = {
-        PipelineDecision.PASS: (
-            "decision-pass",
-            "  PASS — CLEAN HUMAN SPEECH",
-            "Audio passed all forensic heuristics and signal quality gates without requiring restoration.",
-        ),
-        PipelineDecision.PASS_RESTORED: (
-            "decision-restored",
-            "  PASS (RESTORED) — DISTORTIONS REPAIRED",
-            "Hardware/environmental corruptions detected and successfully corrected by targeted DSP filters with measurable quality gain.",
-        ),
-        PipelineDecision.REJECT_LIKELY_SYNTHETIC: (
-            "decision-reject-synth",
-            "  REJECT — LIKELY AI-GENERATED / SYNTHETIC",
-            "Signal exhibits multiple physical/acoustic anomalies characteristic of neural vocoders or TTS systems.",
-        ),
-        PipelineDecision.REJECT_UNRECOVERABLE: (
-            "decision-reject-unrec",
-            "  REJECT — UNRECOVERABLE CORRUPTION",
-            "Audio has severe distortions that could not be restored within objective quality thresholds.",
-        ),
-    }
-    css_class, title_text, desc_text = decision_styles.get(
-        result.decision,
-        ("decision-pass", result.decision.value, ""),
-    )
-
-    st.markdown(
-        f"""
-        <div class="decision-banner {css_class}">
-            <h3 style="margin: 0; font-size: 1.3rem;">{title_text}</h3>
-            <p style="margin: 0.3rem 0 0 0; font-size: 0.95rem;">{desc_text}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
 
 def render_gauge_meter(score: float) -> None:
     """Render the synthetic evidence score gauge and risk classification bar."""
@@ -279,87 +235,164 @@ def render_forensics_tab(result: PipelineResult) -> None:
     if observed_data:
         st.dataframe(observed_data, width="stretch", hide_index=True)
 
-    st.markdown("#### Detailed Acoustic Explanations")
-    if result.evidence.explanations:
-        domain_meta: dict[str, tuple[str, str, str]] = {
-            "f0": (
-                "📈",
-                "F0 Pitch & Prosody",
-                "Evaluates fundamental pitch contour dynamics, prosodic vibrato, and inflection variation against human baseline.",
-            ),
-            "harmonic": (
-                "🎵",
-                "Harmonic Structure & HNR",
-                "Inspects harmonic energy distribution and harmonics-to-noise ratio for vocoder buzzing or comb artifacts.",
-            ),
-            "spectral": (
-                "📊",
-                "Spectral Entropy & Timbre",
-                "Monitors spectral centroid variation, spectral flatness, and Wiener entropy across frequency bands.",
-            ),
-            "phase": (
-                "⚡",
-                "Phase Continuity",
-                "Measures unwrapped phase jumps and group delay deviations across time-frequency bins.",
-            ),
-            "temporal": (
-                "⏱️",
-                "Temporal Consistency",
-                "Detects unnatural cross-segment uniformity in speech energy, pitch, and timbre across clauses.",
-            ),
-            "lpc": (
-                "🎙️",
-                "LPC Glottal Residual",
-                "Analyzes glottal excitation pulse kurtosis and prediction gain from inverse vocal tract filtering.",
-            ),
-            "bispectrum": (
-                "🔗",
-                "Bispectral Phase Coupling",
-                "Measures non-linear quadratic phase coupling (QPC) between vocal tract harmonic frequencies.",
-            ),
-            "modulation": (
-                "🎚️",
-                "Syllabic Modulation (2–8 Hz)",
-                "Analyzes temporal amplitude envelope modulation depth and checks for rigid robotic rhythm peaks.",
-            ),
-            "breath": (
-                "🫁",
-                "Respiration & Pause Dynamics",
-                "Detects unnatural continuous run-on speech and mathematically dead digital silence in speech gaps.",
-            ),
-            "decay": (
-                "📉",
-                "Reverberation & Offset Decay",
-                "Evaluates physical room reverberation tails and flags abrupt step-function window truncations.",
-            ),
-        }
-        for explanation in result.evidence.explanations:
-            if ": " in explanation:
-                domain_key, message = explanation.split(": ", 1)
-            else:
-                domain_key, message = "anomaly", explanation
+    st.markdown("#### Forensic Interpretation & Key Findings")
+    st.caption("Acoustic forensics synthesis translating physical detector anomalies into contextual findings.")
 
-            icon, label, context = domain_meta.get(
-                domain_key.lower(),
-                (
-                    "⚠️",
-                    domain_key.upper(),
-                    "Acoustic anomaly detected by deterministic forensic rule comparison.",
+    # Cache LLM generation in session state to avoid duplicate API calls on widget re-runs
+    cache_key = f"forensic_summary_{hash((round(result.evidence.score, 2), result.decision.value, result.evidence.explanations))}"
+    if cache_key in st.session_state:
+        summary_result = st.session_state[cache_key]
+    else:
+        with st.spinner("Synthesizing forensic insights..."):
+            summary_result = generate_forensic_summary(
+                score=result.evidence.score,
+                decision_text=result.decision.value,
+                explanations=result.evidence.explanations,
+                domain_scores=result.evidence.domain_scores,
+            )
+        st.session_state[cache_key] = summary_result
+
+    provider, api_key, model_name = resolve_llm_credentials()
+    if summary_result.is_fallback:
+        badge_label = "FORENSIC ASSESSMENT (HEURISTIC)"
+        model_tag = "Deterministic Heuristics"
+    elif provider == "gemini":
+        badge_label = "FORENSIC ASSESSMENT (AI SYNTHESIS)"
+        model_tag = f"Google Gemini · {model_name}"
+    elif provider == "openrouter":
+        badge_label = "FORENSIC ASSESSMENT (AI SYNTHESIS)"
+        model_tag = f"OpenRouter · {model_name}"
+    else:
+        badge_label = "FORENSIC ASSESSMENT"
+        model_tag = model_name
+
+    headline_escaped = html.escape(summary_result.headline)
+    overview_escaped = html.escape(summary_result.overview)
+    badge_label_escaped = html.escape(badge_label)
+    model_tag_escaped = html.escape(model_tag)
+
+    standout_items_html = "".join(
+        f"<li>{html.escape(fact)}</li>"
+        for fact in summary_result.standout_facts
+    )
+
+    auditory_cues_html = (
+        f'<div class="summary-auditory-note"><strong>Listening guidance:</strong> {html.escape(summary_result.auditory_cues)}</div>'
+        if summary_result.auditory_cues
+        else ""
+    )
+
+    fallback_hint_html = ""
+    if summary_result.is_fallback and not api_key:
+        fallback_hint_html = (
+            '<div class="ai-fallback-hint">Configuration note: Add <code>GEMINI_API_KEY</code> to your '
+            '<code>.env</code> file or Streamlit secrets to activate automated synthesis.</div>'
+        )
+    elif summary_result.is_fallback and summary_result.error_message:
+        fallback_hint_html = f'<div class="ai-fallback-hint">Synthesis notice: {html.escape(summary_result.error_message)}</div>'
+
+    summary_card_html = (
+        '<div class="ai-summary-container">'
+        '<div class="ai-summary-header">'
+        f'<span class="ai-badge">{badge_label_escaped}</span>'
+        f'<span class="ai-model-tag">{model_tag_escaped}</span>'
+        '</div>'
+        f'<div class="ai-headline">{headline_escaped}</div>'
+        f'<div class="ai-overview">{overview_escaped}</div>'
+        '<div class="ai-section-title">Key Acoustic Observations</div>'
+        f'<ul class="summary-findings-list">{standout_items_html}</ul>'
+        f'{auditory_cues_html}'
+        f'{fallback_hint_html}'
+        '</div>'
+    )
+
+    st.markdown(summary_card_html, unsafe_allow_html=True)
+
+    if result.evidence.explanations:
+        with st.expander(
+            f"🛠️ View Raw DSP Threshold Details ({len(result.evidence.explanations)} Rules Triggered)",
+            expanded=False,
+        ):
+            st.caption("Low-level physical acoustic measurements and deterministic heuristic rules for technical inspection:")
+            domain_meta: dict[str, tuple[str, str, str]] = {
+                "f0": (
+                    "📈",
+                    "F0 Pitch & Prosody",
+                    "Evaluates fundamental pitch contour dynamics, prosodic vibrato, and inflection variation against human baseline.",
                 ),
-            )
-            st.markdown(
-                f"""
-                <div class="anomaly-card">
-                    <div class="anomaly-header">
-                        <span class="anomaly-badge">{icon} {label}</span>
-                        <span style="font-size: 0.75rem; color: #f87171; font-weight: 700;">⚠️ THRESHOLD EXCEEDED</span>
+                "harmonic": (
+                    "🎵",
+                    "Harmonic Structure & HNR",
+                    "Inspects harmonic energy distribution and harmonics-to-noise ratio for vocoder buzzing or comb artifacts.",
+                ),
+                "spectral": (
+                    "📊",
+                    "Spectral Entropy & Timbre",
+                    "Monitors spectral centroid variation, spectral flatness, and Wiener entropy across frequency bands.",
+                ),
+                "phase": (
+                    "⚡",
+                    "Phase Continuity",
+                    "Measures unwrapped phase jumps and group delay deviations across time-frequency bins.",
+                ),
+                "temporal": (
+                    "⏱️",
+                    "Temporal Consistency",
+                    "Detects unnatural cross-segment uniformity in speech energy, pitch, and timbre across clauses.",
+                ),
+                "lpc": (
+                    "🎙️",
+                    "LPC Glottal Residual",
+                    "Analyzes glottal excitation pulse kurtosis and prediction gain from inverse vocal tract filtering.",
+                ),
+                "bispectrum": (
+                    "🔗",
+                    "Bispectral Phase Coupling",
+                    "Measures non-linear quadratic phase coupling (QPC) between vocal tract harmonic frequencies.",
+                ),
+                "modulation": (
+                    "🎚️",
+                    "Syllabic Modulation (2–8 Hz)",
+                    "Analyzes temporal amplitude envelope modulation depth and checks for rigid robotic rhythm peaks.",
+                ),
+                "breath": (
+                    "🫁",
+                    "Respiration & Pause Dynamics",
+                    "Detects unnatural continuous run-on speech and mathematically dead digital silence in speech gaps.",
+                ),
+                "decay": (
+                    "📉",
+                    "Reverberation & Offset Decay",
+                    "Evaluates physical room reverberation tails and flags abrupt step-function window truncations.",
+                ),
+            }
+            for explanation in result.evidence.explanations:
+                if ": " in explanation:
+                    domain_key, message = explanation.split(": ", 1)
+                else:
+                    domain_key, message = "anomaly", explanation
+
+                icon, label, context = domain_meta.get(
+                    domain_key.lower(),
+                    (
+                        "⚠️",
+                        domain_key.upper(),
+                        "Acoustic anomaly detected by deterministic forensic rule comparison.",
+                    ),
+                )
+                st.markdown(
+                    f"""
+                    <div class="anomaly-card">
+                        <div class="anomaly-header">
+                            <span class="anomaly-badge">{icon} {label}</span>
+                            <span style="font-size: 0.75rem; color: #f87171; font-weight: 700;">⚠️ THRESHOLD EXCEEDED</span>
+                        </div>
+                        <div class="anomaly-title">{html.escape(message)}</div>
+                        <p class="anomaly-context"><em>Acoustic Significance:</em> {html.escape(context)}</p>
                     </div>
-                    <div class="anomaly-title">{message}</div>
-                    <p class="anomaly-context"><em>Acoustic Significance:</em> {context}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
     else:
         st.markdown(
             """

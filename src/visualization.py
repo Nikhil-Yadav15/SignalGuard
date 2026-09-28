@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from tempfile import gettempdir
 
-with contextlib.suppress(ImportError, OSError):
+with contextlib.suppress(ImportError):
     import numba  # noqa: F401 - eagerly initialize to prevent lazy_loader circular imports
 
 # Some locked-down desktop installations do not permit Matplotlib to create a

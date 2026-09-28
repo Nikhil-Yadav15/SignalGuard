@@ -66,7 +66,6 @@ def score_synthetic_evidence(results: Mapping[str, F0AnalysisResult | AnalysisRe
         weighted_score += float(domain_weight)*score; available_domain_weight += float(domain_weight)
     total = 0.0 if available_domain_weight == 0 else float(weighted_score / available_domain_weight)
     flagged = [d.score for d in domains if d.score >= 35.0]
-    # Multiple flagged domains provide corroborating evidence for a small boost.
     if len(flagged) >= 2 and total > 0.0:
         boost = 1.0 + 0.15 * (len(flagged) - 1)
         total = float(min(100.0, total * boost))

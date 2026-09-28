@@ -12,11 +12,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-
-
 import numpy as np
 
-with contextlib.suppress(ImportError, OSError):
+with contextlib.suppress(ImportError):
     import numba  # noqa: F401
 
 from src.calibration import calibrate_likely_synthetic_threshold, score_labelled_audio

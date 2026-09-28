@@ -55,7 +55,7 @@ def render_sidebar() -> None:
 
         st.markdown("---")
         st.markdown("### 📊 Forensic Benchmark Table")
-        st.table(
+        st.dataframe(
             [
                 {"Metric": "F0 STD", "Human Norm": "10–50 Hz", "Synthetic Indicator": "<10 Hz (Too flat)"},
                 {"Metric": "Zero-Crossing Rate", "Human Norm": "0.01–0.05", "Synthetic Indicator": ">0.08 (Noisy)"},
@@ -69,11 +69,13 @@ def render_sidebar() -> None:
                 {"Metric": "Offset Reverberation Decay", "Human Norm": "Exponential 15–60 ms", "Synthetic Indicator": "Abrupt cutoff (<8 ms)"},
                 {"Metric": "SNR", "Human Norm": ">25 dB (Clean)", "Synthetic Indicator": "<15 dB (Corrupted)"},
             ],
+            hide_index=True,
+            width="stretch",
         )
 
         st.markdown("---")
         st.markdown("### 🛠️ DSP Restoration Reference")
-        st.table(
+        st.dataframe(
             [
                 {"Distortion": "Broadband Noise", "DSP Filter": "Wiener / Spectral Subtraction"},
                 {"Distortion": "50/60 Hz Hum", "DSP Filter": "Digital IIR Notch (Q=30)"},
@@ -82,4 +84,6 @@ def render_sidebar() -> None:
                 {"Distortion": "High-Freq Hiss", "DSP Filter": "Hamming Sinc LPF (8 kHz)"},
                 {"Distortion": "Low-Freq Rumble", "DSP Filter": "Butterworth HPF (80 Hz)"},
             ],
+            hide_index=True,
+            width="stretch",
         )

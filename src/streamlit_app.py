@@ -10,7 +10,7 @@ import sys
 from io import BytesIO
 from pathlib import Path
 
-with contextlib.suppress(ImportError, OSError):
+with contextlib.suppress(ImportError):
     import numba  # noqa: F401 - eagerly initialize to prevent lazy_loader circular imports
 
 # ``streamlit run src/streamlit_app.py`` executes this file as a script. Add

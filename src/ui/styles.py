@@ -177,6 +177,22 @@ def inject_custom_css() -> None:
             color: #64748b;
             font-weight: 500;
         }
+        .forensic-mode-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .forensic-mode-dot.dot-ai {
+            background-color: #22c55e;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+        }
+        .forensic-mode-dot.dot-manual {
+            background-color: #3b82f6;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.7);
+        }
         .ai-headline {
             color: #f8fafc;
             font-size: 1.15rem;

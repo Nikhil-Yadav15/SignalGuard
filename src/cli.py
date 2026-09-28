@@ -13,7 +13,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-with contextlib.suppress(ImportError):
+with contextlib.suppress(ImportError, OSError):
     import numba  # noqa: F401
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]

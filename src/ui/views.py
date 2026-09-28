@@ -252,24 +252,17 @@ def render_forensics_tab(result: PipelineResult) -> None:
             )
         st.session_state[cache_key] = summary_result
 
-    provider, api_key, model_name = resolve_llm_credentials()
+    badge_label = "FORENSIC ASSESSMENT"
     if summary_result.is_fallback:
-        badge_label = "FORENSIC ASSESSMENT (HEURISTIC)"
-        model_tag = "Deterministic Heuristics"
-    elif provider == "gemini":
-        badge_label = "FORENSIC ASSESSMENT (AI SYNTHESIS)"
-        model_tag = f"Google Gemini · {model_name}"
-    elif provider == "openrouter":
-        badge_label = "FORENSIC ASSESSMENT (AI SYNTHESIS)"
-        model_tag = f"OpenRouter · {model_name}"
+        dot_class = "dot-manual"
+        dot_title = "Manual Forensic Synthesis (Heuristic)"
     else:
-        badge_label = "FORENSIC ASSESSMENT"
-        model_tag = model_name
+        dot_class = "dot-ai"
+        dot_title = "AI Forensic Synthesis Active"
 
     headline_escaped = html.escape(summary_result.headline)
     overview_escaped = html.escape(summary_result.overview)
     badge_label_escaped = html.escape(badge_label)
-    model_tag_escaped = html.escape(model_tag)
 
     standout_items_html = "".join(
         f"<li>{html.escape(fact)}</li>"
@@ -282,27 +275,17 @@ def render_forensics_tab(result: PipelineResult) -> None:
         else ""
     )
 
-    fallback_hint_html = ""
-    if summary_result.is_fallback and not api_key:
-        fallback_hint_html = (
-            '<div class="ai-fallback-hint">Configuration note: Add <code>GEMINI_API_KEY</code> to your '
-            '<code>.env</code> file or Streamlit secrets to activate automated synthesis.</div>'
-        )
-    elif summary_result.is_fallback and summary_result.error_message:
-        fallback_hint_html = f'<div class="ai-fallback-hint">Synthesis notice: {html.escape(summary_result.error_message)}</div>'
-
     summary_card_html = (
         '<div class="ai-summary-container">'
         '<div class="ai-summary-header">'
         f'<span class="ai-badge">{badge_label_escaped}</span>'
-        f'<span class="ai-model-tag">{model_tag_escaped}</span>'
+        f'<span class="forensic-mode-dot {dot_class}" title="{dot_title}"></span>'
         '</div>'
         f'<div class="ai-headline">{headline_escaped}</div>'
         f'<div class="ai-overview">{overview_escaped}</div>'
         '<div class="ai-section-title">Key Acoustic Observations</div>'
         f'<ul class="summary-findings-list">{standout_items_html}</ul>'
         f'{auditory_cues_html}'
-        f'{fallback_hint_html}'
         '</div>'
     )
 

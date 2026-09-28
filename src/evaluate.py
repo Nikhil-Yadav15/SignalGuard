@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-with contextlib.suppress(ImportError):
+with contextlib.suppress(ImportError, OSError):
     import numba  # noqa: F401
 
 from src.calibration import calibrate_likely_synthetic_threshold, score_labelled_audio

@@ -2,7 +2,7 @@
 
 try:
     import numba  # noqa: F401 - eagerly initialize to prevent lazy_loader circular imports
-except ImportError:
+except (ImportError, OSError):
     pass
 
 from .preprocessing import (
